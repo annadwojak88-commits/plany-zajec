@@ -130,6 +130,9 @@
   .ztab td.ok .qty{background:#eef9f1;border-color:#9FDDBE}
   .ztab td.ok label{color:#2f8a57;font-weight:700}
   .ztab td.na{color:#ccc;text-align:center}
+  .ztab td.mamy{color:#7a8a80;font-size:12.5px;font-weight:700;background:#f4f6f5}
+  .ztab td.mamy .undo,.ztab .mamy-btn{font:inherit;font-size:11.5px;font-weight:700;margin-left:6px;border:1.5px solid var(--line);background:#fff;border-radius:999px;padding:3px 8px;cursor:pointer;color:#6b5a99}
+  .ztab tr.row-mamy td:first-child{color:#aaa;text-decoration:line-through}
   .qty{width:76px;border:2px solid var(--line);border-radius:8px;padding:5px 7px;font:inherit}
   .addrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
   .addrow input,.addrow select{border:2px solid var(--line);border-radius:10px;padding:7px;font:inherit}
@@ -24130,9 +24133,11 @@ function renderShop(el){
   var wl = state.dane.zakupyWlasne = state.dane.zakupyWlasne || [];
   var opts = '<option value="m">Cały miesiąc</option>' + d.weeks.map(function(w){ return '<option value="' + w.idx + '"' + (String(w.idx) === state.shopScope ? ' selected' : '') + '>Tydzień ' + ROMAN[w.idx] + ' (' + dm(w.days[0].date) + '–' + dm(w.days[w.days.length - 1].date) + ')</option>'; }).join('');
   var zopts = '<option value="oba">Oba żłobki</option>' + ZLOBKI.map(function(z){ return '<option value="' + z.id + '"' + (zl === z.id ? ' selected' : '') + '>ul. ' + z.name + '</option>'; }).join('');
-  var cell = function(key, z){ var v = (state.dane.zakupy2 && state.dane.zakupy2[key] && state.dane.zakupy2[key][z.id]) || { q:'', ok:false };
-    return '<td class="zc' + (v.ok ? ' ok' : '') + '"><input class="qty" data-zq="' + esc(key) + '|' + z.id + '" value="' + esc(v.q) + '" placeholder="ile?"><label><input type="checkbox" data-zok="' + esc(key) + '|' + z.id + '"' + (v.ok ? ' checked' : '') + '> kupione</label></td>'; };
-  var rows = d.mat.map(function(it){ return '<tr><td><b>' + esc(it.label) + '</b><br><small>' + it.dates.join(', ') + '</small></td>' + cols.map(function(z){ return cell(it.key, z); }).join('') + '</tr>'; }).join('');
+  var zv = function(key, z){ return (state.dane.zakupy2 && state.dane.zakupy2[key] && state.dane.zakupy2[key][z.id]) || { q:'', ok:false }; };
+  var cell = function(key, z){ var v = zv(key, z), id = esc(key) + '|' + z.id;
+    if(v.mamy) return '<td class="zc mamy"><span>✔ mamy na sali</span><button type="button" class="undo" data-zmamy="' + id + '" title="Cofnij – jednak trzeba kupić">↺ cofnij</button></td>';
+    return '<td class="zc' + (v.ok ? ' ok' : '') + '"><input class="qty" data-zq="' + id + '" value="' + esc(v.q) + '" placeholder="ile?"><label><input type="checkbox" data-zok="' + id + '"' + (v.ok ? ' checked' : '') + '> kupione</label><button type="button" class="mamy-btn" data-zmamy="' + id + '" title="Mamy na sali – nie trzeba kupować">mamy na sali</button></td>'; };
+  var rows = d.mat.map(function(it){ var all = cols.every(function(z){ return zv(it.key, z).mamy; }); return '<tr' + (all ? ' class="row-mamy"' : '') + '><td><b>' + esc(it.label) + '</b><br><small>' + it.dates.join(', ') + '</small></td>' + cols.map(function(z){ return cell(it.key, z); }).join('') + '</tr>'; }).join('');
   var own = wl.filter(function(w){ return zl === 'oba' || w.z === zl; }).map(function(w){
     return '<tr><td><b>' + esc(w.n) + '</b><br><small>dodatkowe · ul. ' + esc(ZLOBKI.filter(function(z){ return z.id === w.z; })[0].name) + ' · ' + esc(w.a || '') + '</small> <button class="btn b-line b-sm" data-wdel="' + w.id + '" title="Usuń">✕</button></td>' +
       cols.map(function(z){ return z.id === w.z ? '<td class="zc' + (w.ok ? ' ok' : '') + '"><input class="qty" data-wq="' + w.id + '" value="' + esc(w.q || '') + '" placeholder="ile?"><label><input type="checkbox" data-wok="' + w.id + '"' + (w.ok ? ' checked' : '') + '> kupione</label></td>' : '<td class="zc na">—</td>'; }).join('') + '</tr>';
@@ -24141,7 +24146,7 @@ function renderShop(el){
   el.innerHTML = '<div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">' +
     '<label class="f" style="margin:0;min-width:220px"><span>Zakres</span><select id="scope">' + opts.replace('value="m">', 'value="m"' + (state.shopScope === 'm' ? ' selected' : '') + '>') + '</select></label>' +
     '<label class="f" style="margin:0;min-width:200px"><span>Żłobek</span><select id="zl">' + zopts + '</select></label>' +
-    '<div style="flex:1;min-width:200px;color:var(--soft);font-size:13px">Każdy żłobek wpisuje swoją ilość i odhacza, co już kupione. Zmiany widzą wszystkie opiekunki.</div><button class="btn b-line" id="shopPrint">🖨️ Drukuj listę</button></div>' +
+    '<div style="flex:1;min-width:200px;color:var(--soft);font-size:13px">Każdy żłobek wpisuje swoją ilość i odhacza, co już kupione. Jeśli coś macie na sali – kliknij „mamy na sali”, pozycja zniknie z listy do kupienia. Zmiany widzą wszystkie opiekunki.</div><button class="btn b-line" id="shopPrint">🖨️ Drukuj listę</button></div>' +
     '<div class="card shop"><h3 style="margin-top:0">🛒 Do kupienia i przygotowania</h3>' +
     '<div style="overflow-x:auto"><table class="ztab"><tr><th>Co</th>' + cols.map(function(z){ return '<th>ul. ' + z.name + '</th>'; }).join('') + '</tr>' + (rows || '<tr><td colspan="3">Brak – najpierw ułóż zajęcia.</td></tr>') + own + '</table></div>' +
     '<div class="addrow"><input id="wN" placeholder="Dodaj własną pozycję, np. chusteczki nawilżane"><select id="wZ">' + ZLOBKI.map(function(z){ return '<option value="' + z.id + '"' + (zl === z.id ? ' selected' : '') + '>ul. ' + z.name + '</option>'; }).join('') + '</select><input id="wQ" placeholder="ile?" style="width:80px"><button class="btn b-main b-sm" id="wAdd">➕ Dodaj</button></div></div>' +
@@ -24149,6 +24154,7 @@ function renderShop(el){
   $('#scope').onchange = function(){ state.shopScope = this.value; renderMain(); };
   $('#zl').onchange = function(){ state.shopZl = this.value; lsSet('shopZl', this.value); renderMain(); };
   $$('[data-zq]', el).forEach(function(i){ i.oninput = function(){ var p = i.getAttribute('data-zq').split('|'); zkup(p[0])[p[1]].q = i.value; markShopDirty(); }; });
+  $$('[data-zmamy]', el).forEach(function(b){ b.onclick = function(){ var p = b.getAttribute('data-zmamy').split('|'), v = zkup(p[0])[p[1]]; v.mamy = !v.mamy; markShopDirty(); var y = window.scrollY; renderMain(); window.scrollTo(0, y); }; });
   $$('[data-zok]', el).forEach(function(c){ c.onchange = function(){ var p = c.getAttribute('data-zok').split('|'); zkup(p[0])[p[1]].ok = c.checked; c.closest('td').classList.toggle('ok', c.checked); markShopDirty(); }; });
   var wf = function(id){ return wl.filter(function(w){ return w.id === id; })[0]; };
   $$('[data-wq]', el).forEach(function(i){ i.oninput = function(){ wf(i.getAttribute('data-wq')).q = i.value; markShopDirty(); }; });
@@ -24163,7 +24169,7 @@ function printShop(d, cols){
   var title = 'Zakupy i druk – ' + (state.shopScope === 'm' ? monthLabel(state.month) : 'tydzień ' + ROMAN[+state.shopScope] + ', ' + monthLabel(state.month));
   var html = '<div style="font-family:Nunito,Calibri,sans-serif"><h2>' + esc(cap(title)) + '</h2>';
   cols.forEach(function(z){
-    var items = d.mat.map(function(it){ var v = (state.dane.zakupy2 && state.dane.zakupy2[it.key] && state.dane.zakupy2[it.key][z.id]) || {}; return { n: it.label, q: v.q, ok: v.ok, s: it.dates.join(', ') }; })
+    var items = d.mat.filter(function(it){ var v = (state.dane.zakupy2 && state.dane.zakupy2[it.key] && state.dane.zakupy2[it.key][z.id]) || {}; return !v.mamy; }).map(function(it){ var v = (state.dane.zakupy2 && state.dane.zakupy2[it.key] && state.dane.zakupy2[it.key][z.id]) || {}; return { n: it.label, q: v.q, ok: v.ok, s: it.dates.join(', ') }; })
       .concat((state.dane.zakupyWlasne || []).filter(function(w){ return w.z === z.id; }).map(function(w){ return { n: w.n, q: w.q, ok: w.ok, s: 'dodatkowe' }; }));
     html += '<h3 style="margin-bottom:4px">🛒 ul. ' + z.name + '</h3><table style="width:100%;border-collapse:collapse;font-size:11pt">' +
       items.map(function(i){ return '<tr><td style="width:24px;border-bottom:1px solid #ddd;padding:4px">' + (i.ok ? '☑' : '☐') + '</td><td style="border-bottom:1px solid #ddd;padding:4px">' + esc(i.n) + ' <span style="color:#888;font-size:9pt">(' + esc(i.s) + ')</span></td><td style="width:90px;border-bottom:1px solid #ddd;padding:4px;font-weight:700">' + esc(i.q || '') + '</td></tr>'; }).join('') + '</table>';
