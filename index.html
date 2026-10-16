@@ -25,6 +25,10 @@
   .brand{display:flex;align-items:center;gap:10px;font-weight:900;font-size:17px;margin-right:auto}
   .badge-rb{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-size:18px;
     background:conic-gradient(from 180deg,#8FC7EE,#9FDDBE,#F6DE7C,#F7B98B,#F2A0BE,#B9A2E6,#8FC7EE)}
+  .links{display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 10px}
+  .links a,.links button{font-size:12.5px;font-weight:700;padding:5px 10px;border-radius:999px;border:1.5px solid var(--line);background:#fff;color:#5b4a8a;text-decoration:none;cursor:pointer;font-family:inherit}
+  .links a:hover,.links button:hover{background:#f4effc}
+  .tpl-img{display:block;max-width:100%;max-height:60vh;margin:8px auto;border:1px solid #eee;border-radius:10px;background:#fff}
   .logo-big{display:block;margin:0 auto 4px;width:150px;height:auto}
   .logo-top{height:42px;width:auto;display:block}
   .rainbow{height:5px;background:linear-gradient(90deg,#8FC7EE,#9FDDBE,#F6DE7C,#F7B98B,#F2A0BE,#B9A2E6)}
@@ -118,6 +122,18 @@
   .shop ul{padding:0;margin:0}
   .shop li.done span{text-decoration:line-through;color:#aaa}
   .shop small{color:var(--soft)}
+  .ztab{width:100%;border-collapse:collapse;font-size:14px}
+  .ztab th{text-align:left;font-size:12px;color:var(--soft);padding:6px;border-bottom:2px solid var(--line)}
+  .ztab td{padding:7px 6px;border-bottom:1px dashed var(--line);vertical-align:top}
+  .ztab td.zc{white-space:nowrap;width:1%}
+  .ztab td.zc label{font-size:12.5px;margin-left:6px;color:var(--soft)}
+  .ztab td.ok .qty{background:#eef9f1;border-color:#9FDDBE}
+  .ztab td.ok label{color:#2f8a57;font-weight:700}
+  .ztab td.na{color:#ccc;text-align:center}
+  .qty{width:76px;border:2px solid var(--line);border-radius:8px;padding:5px 7px;font:inherit}
+  .addrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .addrow input,.addrow select{border:2px solid var(--line);border-radius:10px;padding:7px;font:inherit}
+  .addrow #wN{flex:1;min-width:200px}
   .hist li{padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px}
   .hist small{color:var(--soft);font-weight:700;margin-right:8px}
   /* toast & modal */
@@ -23428,7 +23444,7 @@ var SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJl
 var FN_URL = SB_URL + '/functions/v1/plany';
 var LS = 'teczowy_plany_';
 var DEADLINE_DAY = 20;
-var AI_MONTH_LIMIT = 2, AI_DAY_LIMIT = 10;
+var AI_MONTH_LIMIT = 2, AI_DAY_LIMIT = 10, AI_TPL_LIMIT = 20;
 
 var MONTHS = ['styczeń','luty','marzec','kwiecień','maj','czerwiec','lipiec','sierpień','wrzesień','październik','listopad','grudzień'];
 var MONTHS_GEN = ['stycznia','lutego','marca','kwietnia','maja','czerwca','lipca','sierpnia','września','października','listopada','grudnia'];
@@ -23535,7 +23551,7 @@ DemoApi.prototype.call = function(action, body){
     if(action === 'comment'){ var c = { id:db.id++, miesiac:body.miesiac, dzien:body.dzien || null, autor:user.name, tresc:body.tresc, czas:new Date().toISOString(), rozwiazany:false }; db.komentarze.push(c); self.save(db); return { komentarz:c }; }
     if(action === 'resolve'){ db.komentarze.forEach(function(c){ if(c.id === body.id) c.rozwiazany = true; }); self.save(db); return {}; }
     if(action === 'history') return { historia: db.historia.filter(function(h){ return h.miesiac === body.miesiac; }) };
-    var lim = function(row){ return { miesiac: row.ai_miesiac || 0, miesiacMax: AI_MONTH_LIMIT, dni: row.ai_dni || 0, dniMax: AI_DAY_LIMIT }; };
+    var lim = function(row){ return { miesiac: row.ai_miesiac || 0, miesiacMax: AI_MONTH_LIMIT, dni: row.ai_dni || 0, dniMax: AI_DAY_LIMIT, szablony: row.ai_szablony || 0 }; };
     var limMsg = function(k){ return k === 'miesiac' ? 'Limit wykorzystany: cały miesiąc można ułożyć z AI ' + AI_MONTH_LIMIT + ' razy. Poproś dyrektora o odblokowanie.' : 'Limit wykorzystany: w tym miesiącu można ułożyć z AI ' + AI_DAY_LIMIT + ' pojedynczych dni. Poproś dyrektora o odblokowanie.'; };
     if(action === 'ai_start'){
       var r3 = db.plany[body.miesiac]; if(!r3) err(404, 'Najpierw utwórz plan.');
@@ -23544,7 +23560,13 @@ DemoApi.prototype.call = function(action, body){
     }
     if(action === 'ai_reset'){
       if(user.role !== 'admin') err(403, 'Tylko dyrektor może odblokować limit.');
-      var r4 = db.plany[body.miesiac]; r4.ai_miesiac = 0; r4.ai_dni = 0; r4.ai_runy = []; hist(body.miesiac, 'Odblokowano limit AI'); self.save(db); return { limity: lim(r4) };
+      var r4 = db.plany[body.miesiac]; r4.ai_miesiac = 0; r4.ai_dni = 0; r4.ai_szablony = 0; r4.ai_runy = []; hist(body.miesiac, 'Odblokowano limit AI'); self.save(db); return { limity: lim(r4) };
+    }
+    if(action === 'szablon'){
+      var r6 = db.plany[body.miesiac]; if(!r6) err(404, 'Najpierw utwórz plan.');
+      if((r6.ai_szablony || 0) >= AI_TPL_LIMIT) err(403, 'Limit szablonów wykorzystany.');
+      r6.ai_szablony = (r6.ai_szablony || 0) + 1; self.save(db);
+      return sleep(600).then(function(){ return { svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800"><circle cx="300" cy="420" r="220" fill="none" stroke="#000" stroke-width="8"/><path d="M300 200 q20 -60 60 -70" fill="none" stroke="#000" stroke-width="8"/></svg>', limity: lim(r6) }; });
     }
     if(action === 'ai'){
       if(body.tryb === 'tydzien') return sleep(400).then(function(){ return { tytul: demoWeekTitle(body.tematy || []) }; });
@@ -23591,11 +23613,11 @@ var api = null;
 var state = {
   token: null, user: null, users: [],
   month: null, plan: null, dane: null, komentarze: [], months: [], historia: null,
-  view: 'przeglad', day: null, shopScope: 'm',
+  view: 'przeglad', day: null, shopScope: 'm', shopZl: null,
   dirtyDays: {}, dirtyMeta: {}, drobneOnly: true, saving: false, saveTimer: null, lastSaved: null, busy: false
 };
 
-function emptyAct(pop){ return { tytul:'', rodzaj: pop ? 'muzyczno-ruchowe' : '', czas: pop ? '5–10 min' : '8–12 min', materialy:'', cele:'', przebieg:[], slowa:'', dostosowanie:'', wazne:'', druk:[], niespodzianka:false }; }
+function emptyAct(pop){ return { tytul:'', rodzaj: pop ? 'muzyczno-ruchowe' : '', czas: pop ? '5–10 min' : '8–12 min', materialy:'', cele:'', przebieg:[], slowa:'', piosenka:'', dostosowanie:'', wazne:'', druk:[], niespodzianka:false }; }
 function normAct(a, pop){
   var e = emptyAct(pop); a = a || {};
   Object.keys(e).forEach(function(k){ if(a[k] !== undefined && a[k] !== null) e[k] = a[k]; });
@@ -23624,7 +23646,7 @@ function createMonthData(mk){
   }
   var tygodnie = {};
   dni.forEach(function(x){ tygodnie[weekKeyOf(x.date)] = ''; });
-  return { dni: dni, tygodnie: tygodnie, zakupy: {} };
+  return { dni: dni, tygodnie: tygodnie, zakupy: {}, szablony: {} };
 }
 function normDane(d){
   d = d || {};
@@ -23632,6 +23654,7 @@ function normDane(d){
   d.tygodnie = d.tygodnie || {};
   d.dni.forEach(function(x){ var k = weekKeyOf(x.date); if(d.tygodnie[k] === undefined) d.tygodnie[k] = ''; });
   d.zakupy = d.zakupy || {};
+  d.szablony = d.szablony || {};
   return d;
 }
 function weeksOf(dane){
@@ -23659,11 +23682,12 @@ function saveDescription(){
   var parts = [];
   if(days.length) parts.push('Zmiany w dniach: ' + days.join(', '));
   if(state.dirtyMeta.tygodnie) parts.push('tytuły tygodni');
+  if(state.dirtyMeta.szablony) parts.push('szablony do druku');
   return parts.join('; ');
 }
 function saveNow(){
   if(state.saving){ scheduleSave(); return Promise.resolve(); }
-  var hasDirty = Object.keys(state.dirtyDays).length || state.dirtyMeta.tygodnie || state.dirtyMeta.zakupy;
+  var hasDirty = Object.keys(state.dirtyDays).length || state.dirtyMeta.tygodnie || state.dirtyMeta.zakupy || state.dirtyMeta.szablony;
   if(!hasDirty || !state.dane){ setSaveState(''); return Promise.resolve(); }
   state.saving = true;
   var sentDays = clone(state.dirtyDays), sentMeta = clone(state.dirtyMeta), drobne = state.drobneOnly && !Object.keys(state.dirtyDays).length && !state.dirtyMeta.tygodnie;
@@ -23698,7 +23722,8 @@ function mergeRemote(remote){
   var merged = normDane(clone(remote.dane));
   merged.dni = merged.dni.map(function(x){ return state.dirtyDays[x.date] ? clone(findDayIn(local, x.date) || x) : x; });
   if(state.dirtyMeta.tygodnie) merged.tygodnie = clone(local.tygodnie);
-  if(state.dirtyMeta.zakupy){ Object.keys(local.zakupy).forEach(function(k){ merged.zakupy[k] = local.zakupy[k]; }); }
+  if(state.dirtyMeta.zakupy){ Object.keys(local.zakupy).forEach(function(k){ merged.zakupy[k] = local.zakupy[k]; }); merged.zakupy2 = Object.assign({}, merged.zakupy2 || {}, local.zakupy2 || {}); merged.zakupyWlasne = local.zakupyWlasne || merged.zakupyWlasne; }
+  if(state.dirtyMeta.szablony){ merged.szablony = Object.assign({}, merged.szablony || {}, local.szablony || {}); }
   state.dane = merged; state.plan = remote;
 }
 function findDayIn(d, iso){ return d.dni.filter(function(x){ return x.date === iso; })[0]; }
@@ -23798,11 +23823,11 @@ function createPlan(){
 }
 function aiLimits(){
   var p = state.plan || {};
-  return { miesiac: p.ai_miesiac || 0, dni: p.ai_dni || 0 };
+  return { miesiac: p.ai_miesiac || 0, dni: p.ai_dni || 0, szablony: p.ai_szablony || 0 };
 }
 function setLimits(l){
   if(!l || !state.plan) return;
-  state.plan.ai_miesiac = l.miesiac; state.plan.ai_dni = l.dni;
+  state.plan.ai_miesiac = l.miesiac; state.plan.ai_dni = l.dni; if(l.szablony !== undefined) state.plan.ai_szablony = l.szablony;
 }
 function isAdmin(){ return state.user && state.user.role === 'admin'; }
 function pendingMonths(){ return state.months.filter(function(m){ return m.status === 'do_akceptacji' || m.status === 'zmiany'; }); }
@@ -23935,7 +23960,7 @@ function aiMonthBox(empty){
   else h += '<button class="btn b-ai" disabled>✨ Limit AI na ten miesiąc wykorzystany</button>';
   h += '<div style="font-size:12.5px;color:var(--soft);margin-top:6px;max-width:330px;margin-left:auto">ℹ️ Cały miesiąc można ułożyć z AI <b>' + AI_MONTH_LIMIT + ' razy</b> – zostało: <b>' + left + ' z ' + AI_MONTH_LIMIT + '</b>. Pojedyncze dni: zostało <b>' + dleft + ' z ' + AI_DAY_LIMIT + '</b>.' +
     (left === 0 && !isAdmin() ? ' Aby ułożyć ponownie, poproś dyrektora o odblokowanie.' : '') + '</div>';
-  if(isAdmin() && (l.miesiac || l.dni)) h += '<button class="btn b-line b-sm" id="aiReset" style="margin-top:6px">🔓 Odblokuj limit AI</button>';
+  if(isAdmin() && (l.miesiac || l.dni || l.szablony)) h += '<button class="btn b-line b-sm" id="aiReset" style="margin-top:6px">🔓 Odblokuj limit AI</button>';
   return h + '</div>';
 }
 function aiReset(){
@@ -23947,7 +23972,7 @@ function aiReset(){
 var ACT_FIELDS = [
   ['tytul','Nazwa zajęć','input'], ['rodzaj','Rodzaj','list'], ['czas','Czas','input'],
   ['materialy','Co przygotować? (oddzielaj średnikami)','area'], ['cele','Cele (oddzielaj średnikami)','area'],
-  ['przebieg','Przebieg (każdy krok w nowej linii)','steps'], ['slowa','Słowa do zabawy','input'],
+  ['przebieg','Przebieg (każdy krok w nowej linii)','steps'], ['slowa','Słowa do zabawy','input'], ['piosenka','🎵 Piosenka / rymowanka (tytuł; kilka rozdziel średnikiem)','input'],
   ['druk','Do druku (każda rzecz w nowej linii)','steps']
 ];
 function actFormHtml(a, which){
@@ -23963,6 +23988,8 @@ function actFormHtml(a, which){
     if(f[2] === 'input') h += '<label class="f"><span>' + f[1] + '</span><input data-act="' + which + '" data-k="' + k + '" value="' + esc(val) + '"' + (k === 'tytul' ? ' style="font-weight:800"' : '') + '></label>';
     else if(f[2] === 'area') h += '<label class="f"><span>' + f[1] + '</span><textarea data-act="' + which + '" data-k="' + k + '">' + esc(val) + '</textarea></label>';
     else h += '<label class="f"><span>' + f[1] + '</span><textarea data-act="' + which + '" data-k="' + k + '" rows="' + (k === 'druk' ? 2 : 5) + '">' + esc((val || []).join('\n')) + '</textarea></label>';
+    if(k === 'piosenka') h += '<div class="links" id="songs_' + which + '">' + songLinksHtml(a, pop) + '</div>';
+    if(k === 'druk') h += '<div class="links" id="druk_' + which + '">' + drukLinksHtml(a.druk) + '</div>';
   });
   if(!pop) h += '<label class="check"><input type="checkbox" data-act="' + which + '" data-k="niespodzianka"' + (a.niespodzianka ? ' checked' : '') + '> 🎁 Niespodzianka – w skrócie dla rodziców nie pokazuj nazwy zajęć</label>';
   return h;
@@ -24010,15 +24037,70 @@ function renderDay(el){
       else if(k === 'przebieg' || k === 'druk') a[k] = inp.value.split('\n').map(function(s){ return s.replace(/^\s*\d+[.)]\s*/, '').trim(); }).filter(Boolean);
       else a[k] = inp.value;
       markDirty(x.date);
+      var w = inp.getAttribute('data-act');
+      if(k === 'piosenka' || k === 'tytul'){ var sl = $('#songs_' + w); if(sl) sl.innerHTML = songLinksHtml(a, w === 'popoludnie'); }
+      if(k === 'druk'){ var dl = $('#druk_' + w); if(dl){ dl.innerHTML = drukLinksHtml(a.druk); bindTpl(dl); } }
     };
     inp.addEventListener(inp.type === 'checkbox' ? 'change' : 'input', h);
   });
+  bindTpl(el);
   $$('[data-res]', el).forEach(function(b){ b.onclick = function(){ api.call('resolve', { id: +b.getAttribute('data-res') }).then(function(){ state.komentarze.forEach(function(c){ if(c.id === +b.getAttribute('data-res')) c.rozwiazany = true; }); renderMain(); renderBanners(); }).catch(function(e){ toast(e.message); }); }; });
   $('#comGo').onclick = function(){
     var t = $('#comTxt').value.trim(); if(!t) return;
     api.call('comment', { miesiac: state.month, dzien: x.date, tresc: t }).then(function(r){ state.komentarze.push(r.komentarz); renderMain(); renderBanners(); toast('Dodano komentarz.'); }).catch(function(e){ toast(e.message); });
   };
 }
+
+/* ---------- piosenki i szablony do druku ---------- */
+function ytLink(q){ return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q); }
+function songLinksHtml(a, pop){
+  var titles = String(a.piosenka || '').split(';').map(function(t){ return t.trim(); }).filter(Boolean);
+  var h = titles.map(function(t){ return '<a href="' + ytLink(t + ' piosenka dla dzieci') + '" target="_blank" rel="noopener">▶️ ' + esc(t) + '</a>'; }).join('');
+  var x = findDay(state.day);
+  var topic = x ? x.topic.split(' / ')[0] : '';
+  if(!titles.length && (pop || a.tytul)) h += '<a href="' + ytLink((topic || a.tytul) + ' piosenka dla dzieci') + '" target="_blank" rel="noopener">🔎 Szukaj piosenki do tematu</a>';
+  return h;
+}
+function imgSearch(q){ return 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(q); }
+function drukQuery(item){ return String(item).replace(/\(.*?\)/g, '').replace(/^(szablon|kontur|obrazek|karta|karty)\s*:?\s*/i, '').trim(); }
+function drukBtns(item){
+  var q = drukQuery(item);
+  var has = state.dane && state.dane.szablony && state.dane.szablony[shopKey(item)];
+  return '<a href="' + imgSearch(q + ' kolorowanka kontur do druku dla dzieci') + '" target="_blank" rel="noopener">🔎 Szukaj obrazka</a>' +
+    '<button type="button" data-tpl="' + esc(item) + '">' + (has ? '🖼️ Pokaż szablon' : '🎨 Narysuj szablon (AI)') + '</button>';
+}
+function drukLinksHtml(list){
+  return (list || []).map(function(item){ return '<div style="width:100%;font-size:12.5px;color:var(--soft);margin-top:2px">🖨️ ' + esc(item) + '</div>' + drukBtns(item); }).join('');
+}
+function bindTpl(root){ $$('[data-tpl]', root).forEach(function(b){ b.onclick = function(ev){ ev.preventDefault(); ev.stopPropagation(); openTemplate(b.getAttribute('data-tpl')); }; }); }
+function svgUrl(svg){ return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); }
+function openTemplate(item){
+  var key = shopKey(item), svg = state.dane.szablony[key];
+  var left = Math.max(0, AI_TPL_LIMIT - aiLimits().szablony);
+  var show = function(){
+    svg = state.dane.szablony[key];
+    modal('<h3 style="margin-top:0">🖨️ ' + esc(item) + '</h3>' +
+      (svg ? '<img class="tpl-img" src="' + svgUrl(svg) + '" alt="">' : '<p>Szablon jeszcze nie powstał. AI narysuje prosty kontur do pokolorowania lub wycięcia (A4).</p>') +
+      '<div style="font-size:12.5px;color:var(--soft)">ℹ️ Szablony z AI: zostało <b>' + left + ' z ' + AI_TPL_LIMIT + '</b> w tym miesiącu. Gotowy szablon zapisuje się w planie – kolejne wydruki są bezpłatne.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:12px">' +
+      '<a class="btn b-line" href="' + imgSearch(drukQuery(item) + ' kolorowanka kontur do druku dla dzieci') + '" target="_blank" rel="noopener">🔎 Szukaj w internecie</a>' +
+      (left > 0 ? '<button class="btn b-ai" id="tplGen">' + (svg ? '🔄 Narysuj od nowa' : '🎨 Narysuj szablon') + '</button>' : '<button class="btn b-ai" disabled>Limit szablonów wykorzystany</button>') +
+      (svg ? '<button class="btn b-main" id="tplPrint">🖨️ Drukuj</button>' : '') +
+      '<button class="btn b-line" data-close>Zamknij</button></div>', function(bg){
+        if($('#tplPrint', bg)) $('#tplPrint', bg).onclick = function(){ printHtml('<div style="text-align:center;font-family:Nunito,sans-serif"><img src="' + svgUrl(svg) + '" style="width:100%;max-height:255mm;object-fit:contain"></div>', false); };
+        if($('#tplGen', bg)) $('#tplGen', bg).onclick = function(){
+          var btn = this; btn.disabled = true; btn.textContent = '⏳ Rysuję… (ok. 30 s)';
+          api.call('szablon', { miesiac: state.month, opis: item }).then(function(r){
+            state.dane.szablony[key] = r.svg; state.dirtyMeta.szablony = true; state.drobneOnly = false; scheduleSave();
+            setLimits(r.limity); left = Math.max(0, AI_TPL_LIMIT - aiLimits().szablony);
+            show(); refreshDrukButtons();
+          }).catch(function(e){ btn.disabled = false; btn.textContent = '🎨 Spróbuj ponownie'; toast(e.message, 6000); });
+        };
+      });
+  };
+  show();
+}
+function refreshDrukButtons(){ if(state.view === 'zakupy' || state.view === 'dzien'){ var y = window.scrollY; renderMain(); window.scrollTo(0, y); } }
 
 /* ---------- zakupy i druk ---------- */
 function splitMaterials(txt){
@@ -24038,22 +24120,56 @@ function shopData(scope){
   });
   return { mat: morder.map(function(k){ return { key:k, label:mat[k].label, dates:mat[k].dates }; }), druk: dorder.map(function(k){ return { key:k, label:druk[k].label, dates:druk[k].dates, act:druk[k].act }; }), weeks: weeks };
 }
+var ZLOBKI = [{ id:'m', name:'Malinowskiego' }, { id:'d', name:'Dąbrowskiego' }];
+function zkup(key){ var z = state.dane.zakupy2 = state.dane.zakupy2 || {}; if(!z[key]) z[key] = { m:{ q:'', ok:false }, d:{ q:'', ok:false } }; return z[key]; }
 function renderShop(el){
   var d = shopData(state.shopScope);
+  if(!state.shopZl) state.shopZl = lsGet('shopZl', 'oba');
+  var zl = state.shopZl;
+  var cols = ZLOBKI.filter(function(z){ return zl === 'oba' || zl === z.id; });
+  var wl = state.dane.zakupyWlasne = state.dane.zakupyWlasne || [];
   var opts = '<option value="m">Cały miesiąc</option>' + d.weeks.map(function(w){ return '<option value="' + w.idx + '"' + (String(w.idx) === state.shopScope ? ' selected' : '') + '>Tydzień ' + ROMAN[w.idx] + ' (' + dm(w.days[0].date) + '–' + dm(w.days[w.days.length - 1].date) + ')</option>'; }).join('');
+  var zopts = '<option value="oba">Oba żłobki</option>' + ZLOBKI.map(function(z){ return '<option value="' + z.id + '"' + (zl === z.id ? ' selected' : '') + '>ul. ' + z.name + '</option>'; }).join('');
+  var cell = function(key, z){ var v = (state.dane.zakupy2 && state.dane.zakupy2[key] && state.dane.zakupy2[key][z.id]) || { q:'', ok:false };
+    return '<td class="zc' + (v.ok ? ' ok' : '') + '"><input class="qty" data-zq="' + esc(key) + '|' + z.id + '" value="' + esc(v.q) + '" placeholder="ile?"><label><input type="checkbox" data-zok="' + esc(key) + '|' + z.id + '"' + (v.ok ? ' checked' : '') + '> kupione</label></td>'; };
+  var rows = d.mat.map(function(it){ return '<tr><td><b>' + esc(it.label) + '</b><br><small>' + it.dates.join(', ') + '</small></td>' + cols.map(function(z){ return cell(it.key, z); }).join('') + '</tr>'; }).join('');
+  var own = wl.filter(function(w){ return zl === 'oba' || w.z === zl; }).map(function(w){
+    return '<tr><td><b>' + esc(w.n) + '</b><br><small>dodatkowe · ul. ' + esc(ZLOBKI.filter(function(z){ return z.id === w.z; })[0].name) + ' · ' + esc(w.a || '') + '</small> <button class="btn b-line b-sm" data-wdel="' + w.id + '" title="Usuń">✕</button></td>' +
+      cols.map(function(z){ return z.id === w.z ? '<td class="zc' + (w.ok ? ' ok' : '') + '"><input class="qty" data-wq="' + w.id + '" value="' + esc(w.q || '') + '" placeholder="ile?"><label><input type="checkbox" data-wok="' + w.id + '"' + (w.ok ? ' checked' : '') + '> kupione</label></td>' : '<td class="zc na">—</td>'; }).join('') + '</tr>';
+  }).join('');
   var li = function(it){ var on = !!state.dane.zakupy[it.key]; return '<li class="' + (on ? 'done' : '') + '"><input type="checkbox" data-sk="' + esc(it.key) + '"' + (on ? ' checked' : '') + '><span>' + esc(it.label) + ' <small>(' + it.dates.join(', ') + (it.act ? ' · ' + esc(it.act) : '') + ')</small></span></li>'; };
-  el.innerHTML = '<div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label class="f" style="margin:0;min-width:240px"><span>Zakres</span><select id="scope">' + opts.replace('value="m">', 'value="m"' + (state.shopScope === 'm' ? ' selected' : '') + '>') + '</select></label>' +
-    '<div style="flex:1;color:var(--soft);font-size:13px">Zaznaczaj to, co już jest przygotowane – widzą to wszystkie opiekunki.</div><button class="btn b-line" id="shopPrint">🖨️ Drukuj listę</button></div>' +
-    '<div class="acts"><div class="card shop"><h3 style="margin-top:0">🛒 Do kupienia i przygotowania (' + d.mat.length + ')</h3><ul>' + (d.mat.map(li).join('') || '<li>Brak – najpierw ułóż zajęcia.</li>') + '</ul></div>' +
-    '<div class="card shop"><h3 style="margin-top:0">🖨️ Do wydrukowania (' + d.druk.length + ')</h3><ul>' + (d.druk.map(li).join('') || '<li>Nic do druku.</li>') + '</ul></div></div>';
+  el.innerHTML = '<div class="card" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">' +
+    '<label class="f" style="margin:0;min-width:220px"><span>Zakres</span><select id="scope">' + opts.replace('value="m">', 'value="m"' + (state.shopScope === 'm' ? ' selected' : '') + '>') + '</select></label>' +
+    '<label class="f" style="margin:0;min-width:200px"><span>Żłobek</span><select id="zl">' + zopts + '</select></label>' +
+    '<div style="flex:1;min-width:200px;color:var(--soft);font-size:13px">Każdy żłobek wpisuje swoją ilość i odhacza, co już kupione. Zmiany widzą wszystkie opiekunki.</div><button class="btn b-line" id="shopPrint">🖨️ Drukuj listę</button></div>' +
+    '<div class="card shop"><h3 style="margin-top:0">🛒 Do kupienia i przygotowania</h3>' +
+    '<div style="overflow-x:auto"><table class="ztab"><tr><th>Co</th>' + cols.map(function(z){ return '<th>ul. ' + z.name + '</th>'; }).join('') + '</tr>' + (rows || '<tr><td colspan="3">Brak – najpierw ułóż zajęcia.</td></tr>') + own + '</table></div>' +
+    '<div class="addrow"><input id="wN" placeholder="Dodaj własną pozycję, np. chusteczki nawilżane"><select id="wZ">' + ZLOBKI.map(function(z){ return '<option value="' + z.id + '"' + (zl === z.id ? ' selected' : '') + '>ul. ' + z.name + '</option>'; }).join('') + '</select><input id="wQ" placeholder="ile?" style="width:80px"><button class="btn b-main b-sm" id="wAdd">➕ Dodaj</button></div></div>' +
+    '<div class="card shop"><h3 style="margin-top:0">🖨️ Do wydrukowania (' + d.druk.length + ')</h3><ul>' + (d.druk.map(function(it){ return li(it).replace('</li>', '<div class="links" style="margin:2px 0 0 26px">' + drukBtns(it.label) + '</div></li>'); }).join('') || '<li>Nic do druku.</li>') + '</ul></div>';
   $('#scope').onchange = function(){ state.shopScope = this.value; renderMain(); };
+  $('#zl').onchange = function(){ state.shopZl = this.value; lsSet('shopZl', this.value); renderMain(); };
+  $$('[data-zq]', el).forEach(function(i){ i.oninput = function(){ var p = i.getAttribute('data-zq').split('|'); zkup(p[0])[p[1]].q = i.value; markShopDirty(); }; });
+  $$('[data-zok]', el).forEach(function(c){ c.onchange = function(){ var p = c.getAttribute('data-zok').split('|'); zkup(p[0])[p[1]].ok = c.checked; c.closest('td').classList.toggle('ok', c.checked); markShopDirty(); }; });
+  var wf = function(id){ return wl.filter(function(w){ return w.id === id; })[0]; };
+  $$('[data-wq]', el).forEach(function(i){ i.oninput = function(){ wf(i.getAttribute('data-wq')).q = i.value; markShopDirty(); }; });
+  $$('[data-wok]', el).forEach(function(c){ c.onchange = function(){ wf(c.getAttribute('data-wok')).ok = c.checked; c.closest('td').classList.toggle('ok', c.checked); markShopDirty(); }; });
+  $$('[data-wdel]', el).forEach(function(b){ b.onclick = function(){ if(!confirm('Usunąć tę pozycję?')) return; var id = b.getAttribute('data-wdel'); state.dane.zakupyWlasne = wl.filter(function(w){ return w.id !== id; }); markShopDirty(); renderMain(); }; });
+  $('#wAdd').onclick = function(){ var n = $('#wN').value.trim(); if(!n) return; wl.push({ id: 'w' + Date.now(), n: n, z: $('#wZ').value, q: $('#wQ').value.trim(), ok: false, a: state.user ? state.user.name : '' }); markShopDirty(); renderMain(); };
   $$('[data-sk]', el).forEach(function(c){ c.onchange = function(){ var k = c.getAttribute('data-sk'); if(c.checked) state.dane.zakupy[k] = true; else delete state.dane.zakupy[k]; c.parentNode.classList.toggle('done', c.checked); markShopDirty(); }; });
-  $('#shopPrint').onclick = function(){ printShop(d); };
+  $('#shopPrint').onclick = function(){ printShop(d, cols); };
+  bindTpl(el);
 }
-function printShop(d){
+function printShop(d, cols){
   var title = 'Zakupy i druk – ' + (state.shopScope === 'm' ? monthLabel(state.month) : 'tydzień ' + ROMAN[+state.shopScope] + ', ' + monthLabel(state.month));
-  var li = function(it){ return '<li style="margin:4px 0">☐ ' + esc(it.label) + ' <span style="color:#777">(' + it.dates.join(', ') + ')</span></li>'; };
-  printHtml('<h2 style="font-family:Nunito,sans-serif">' + esc(cap(title)) + '</h2><h3>Do kupienia i przygotowania</h3><ul style="list-style:none;padding:0">' + d.mat.map(li).join('') + '</ul><h3>Do wydrukowania</h3><ul style="list-style:none;padding:0">' + d.druk.map(li).join('') + '</ul>', false);
+  var html = '<div style="font-family:Nunito,Calibri,sans-serif"><h2>' + esc(cap(title)) + '</h2>';
+  cols.forEach(function(z){
+    var items = d.mat.map(function(it){ var v = (state.dane.zakupy2 && state.dane.zakupy2[it.key] && state.dane.zakupy2[it.key][z.id]) || {}; return { n: it.label, q: v.q, ok: v.ok, s: it.dates.join(', ') }; })
+      .concat((state.dane.zakupyWlasne || []).filter(function(w){ return w.z === z.id; }).map(function(w){ return { n: w.n, q: w.q, ok: w.ok, s: 'dodatkowe' }; }));
+    html += '<h3 style="margin-bottom:4px">🛒 ul. ' + z.name + '</h3><table style="width:100%;border-collapse:collapse;font-size:11pt">' +
+      items.map(function(i){ return '<tr><td style="width:24px;border-bottom:1px solid #ddd;padding:4px">' + (i.ok ? '☑' : '☐') + '</td><td style="border-bottom:1px solid #ddd;padding:4px">' + esc(i.n) + ' <span style="color:#888;font-size:9pt">(' + esc(i.s) + ')</span></td><td style="width:90px;border-bottom:1px solid #ddd;padding:4px;font-weight:700">' + esc(i.q || '') + '</td></tr>'; }).join('') + '</table>';
+  });
+  html += '<h3 style="margin-bottom:4px">🖨️ Do wydrukowania</h3><ul style="list-style:none;padding:0">' + d.druk.map(function(it){ return '<li style="margin:4px 0">☐ ' + esc(it.label) + ' <span style="color:#777">(' + it.dates.join(', ') + ')</span></li>'; }).join('') + '</ul></div>';
+  printHtml(html, false);
 }
 
 /* ---------- historia i komentarze ---------- */
@@ -24152,7 +24268,7 @@ function parsePlanDocx(xml, monthKey){
   var LABELS = [
     [/^co przygotować\??:?\s*(.*)$/i, 'materialy'], [/^materiały:?\s*(.*)$/i, 'materialy'],
     [/^cele( zajęć)?:?\s*(.*)$/i, 'cele'], [/^przebieg( zajęć)?:?\s*(.*)$/i, 'przebieg'],
-    [/^słowa do zabawy:?\s*(.*)$/i, 'slowa'], [/^do druku:?\s*(.*)$/i, 'druk'],
+    [/^słowa do zabawy:?\s*(.*)$/i, 'slowa'], [/^piosenk[ai]:?\s*(.*)$/i, 'piosenka'], [/^do druku:?\s*(.*)$/i, 'druk'],
     [/^cel dnia:?\s*(.*)$/i, 'celDnia'], [/^obserwacja opiekuna/i, 'skip'],
     [/^dostosowanie:?\s*(.*)$/i, 'skip'], [/^ważne:?\s*(.*)$/i, 'skip'], [/^uwagi:?\s*(.*)$/i, 'skip']
   ];
@@ -24162,7 +24278,7 @@ function parsePlanDocx(xml, monthKey){
     if(f === 'celDnia'){ day.celDnia = (day.celDnia ? day.celDnia + ' ' : '') + v; return; }
     if(!act) return;
     if(f === 'przebieg' || f === 'druk'){ act[f].push(v.replace(/^(\d+[.)]\s*)+/, '').replace(/^[•\-–]\s*/, '')); return; }
-    act[f] = act[f] ? act[f] + (f === 'slowa' ? ', ' : ' ') + v : v;
+    act[f] = act[f] ? act[f] + (f === 'slowa' ? ', ' : f === 'piosenka' ? '; ' : ' ') + v : v;
   };
   P.forEach(function(s){
     var w = s.match(/^TYDZIE[ŃN]\s+[IVX]+\s*[•·:\-–]?\s*(.*)$/i);
@@ -24178,7 +24294,7 @@ function parsePlanDocx(xml, monthKey){
     var a = s.match(/^(RANO|POPOŁUDNIE|POPOLUDNIE)(?![A-Za-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ])[:\s–\-]*(.*)$/);
     if(a){
       var which = /^RANO/i.test(a[1]) ? 'rano' : 'popoludnie';
-      act = day[which] = { tytul: impStripQuotes(a[2]), rodzaj:'', czas:'', materialy:'', cele:'', przebieg:[], slowa:'', druk:[] };
+      act = day[which] = { tytul: impStripQuotes(a[2]), rodzaj:'', czas:'', materialy:'', cele:'', przebieg:[], slowa:'', piosenka:'', druk:[] };
       field = act.tytul ? null : 'tytul'; wantTopic = false; return;
     }
     if(wantTopic && !act){ day.topic = s; wantTopic = false; return; }
@@ -24473,6 +24589,7 @@ function exportPlanDocx(){
     out.push(p(r('Przebieg', { bold: true, size: 20 }), { spacing: { before: 120, after: 60 }, keepNext: true }));
     (a.przebieg.length ? a.przebieg : ['—']).forEach(function(s, i){ out.push(p(r((a.przebieg.length ? (i + 1) + '. ' : '') + s, { size: 19 }), { spacing: { after: 60 } })); });
     if(a.slowa) out.push(p([r('Słowa do zabawy: ', { size: 17 }), r(a.slowa, { size: 17 })], { spacing: { after: 40 } }));
+    if(a.piosenka) out.push(p([r('Piosenka: ', { bold: true, size: 17 })].concat(String(a.piosenka).split(';').map(function(t){ return t.trim(); }).filter(Boolean).map(function(t, i){ return new D.ExternalHyperlink({ link: ytLink(t + ' piosenka dla dzieci'), children: [r((i ? '; ' : '') + t, { size: 17, color: '1F5FBF', underline: {} })] }); })), { spacing: { after: 40 } }));
     if(a.druk && a.druk.length){ out.push(p(r('Do druku:', { bold: true, size: 17 }), { spacing: { before: 40, after: 20 } })); a.druk.forEach(function(d){ out.push(p(r('• ' + d, { size: 17 }), { spacing: { after: 20 } })); }); }
     out.push(p(r('Obserwacja opiekuna: co zainteresowało dziecko i jakiej pomocy potrzebowało?', { size: 16 }), { spacing: { before: 60, after: 20 } }));
     out.push(p(r('.'.repeat(150), { size: 14, color: '888888' }), { spacing: { after: 60 } }));
