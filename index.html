@@ -24149,14 +24149,15 @@ function parsePlanDocx(xml, monthKey){
     [/^co przygotować\??:?\s*(.*)$/i, 'materialy'], [/^materiały:?\s*(.*)$/i, 'materialy'],
     [/^cele( zajęć)?:?\s*(.*)$/i, 'cele'], [/^przebieg( zajęć)?:?\s*(.*)$/i, 'przebieg'],
     [/^słowa do zabawy:?\s*(.*)$/i, 'slowa'], [/^do druku:?\s*(.*)$/i, 'druk'],
-    [/^cel dnia:?\s*(.*)$/i, 'celDnia'], [/^obserwacja opiekuna/i, 'skip']
+    [/^cel dnia:?\s*(.*)$/i, 'celDnia'], [/^obserwacja opiekuna/i, 'skip'],
+    [/^dostosowanie:?\s*(.*)$/i, 'skip'], [/^ważne:?\s*(.*)$/i, 'skip'], [/^uwagi:?\s*(.*)$/i, 'skip']
   ];
   var day = null, act = null, field = null, week = '', wantTopic = false;
   var push = function(f, v){
     v = String(v || '').trim(); if(!v || /^\.{5,}$/.test(v) || v === '—') return;
     if(f === 'celDnia'){ day.celDnia = (day.celDnia ? day.celDnia + ' ' : '') + v; return; }
     if(!act) return;
-    if(f === 'przebieg' || f === 'druk'){ act[f].push(v.replace(/^\d+[.)]\s*/, '').replace(/^[•\-–]\s*/, '')); return; }
+    if(f === 'przebieg' || f === 'druk'){ act[f].push(v.replace(/^(\d+[.)]\s*)+/, '').replace(/^[•\-–]\s*/, '')); return; }
     act[f] = act[f] ? act[f] + (f === 'slowa' ? ', ' : ' ') + v : v;
   };
   P.forEach(function(s){
@@ -24170,7 +24171,7 @@ function parsePlanDocx(xml, monthKey){
       act = null; field = null; wantTopic = true; return;
     }
     if(!day) return;
-    var a = s.match(/^(RANO|POPOŁUDNIE|POPOLUDNIE)\b[:\s–\-]*(.*)$/i);
+    var a = s.match(/^(RANO|POPOŁUDNIE|POPOLUDNIE)(?![A-Za-ząćęłńóśźżĄĆĘŁŃÓŚŹŻ])[:\s–\-]*(.*)$/);
     if(a){
       var which = /^RANO/i.test(a[1]) ? 'rano' : 'popoludnie';
       act = day[which] = { tytul: impStripQuotes(a[2]), rodzaj:'', czas:'', materialy:'', cele:'', przebieg:[], slowa:'', druk:[] };
